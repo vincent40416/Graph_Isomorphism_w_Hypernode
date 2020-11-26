@@ -89,7 +89,7 @@ with open('Graph_dataset.csv', 'w', newline='') as csvfile:
     writer.writerow(['GraphA', 'GraphB', 'Affinity'])
     g_list = []
     for k in range(num):
-        G = Graph.Erdos_Renyi(n=n, p=2 * np.log(n) / n)
+        G = Graph.Erdos_Renyi(n=n, m=18)
         A = G.get_adjacency()
         graph_np = np.array(A.data, dtype=float)
         # print(graph_np)
@@ -99,7 +99,7 @@ with open('Graph_dataset.csv', 'w', newline='') as csvfile:
             Aff = Affinity.copy()
             convert_to_auto(Aff, automor)
             gern_np = graph_np.copy()
-            swaps = 11
+            swaps = 19
             for step in range(swaps):
                 a = randint(0, n - 1)
                 b = a

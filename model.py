@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 from torch_geometric.nn import GCNConv
+from torch_geometric.nn import SGConv
+from torch_geometric.nn import GINConv
 batch_size = 1
 
 # DGL data structure
@@ -64,62 +66,75 @@ class GCN_01(nn.Module):
         h2 = self.gcn2(g2, h2)
         h2 = self.gcn3(g2, h2) # model_v3
         ha = torch.transpose(h1, 1, 0)
-        h3 = torch.mul(ha, h2)
+        h3 = torch.matmul(ha, h2)
         result = h3
         return result
 
 
 # Pytorch Geo structure
 class GNN_Geo(torch.nn.Module):
-    def __init__(self, node_sum, embedding_dim):
+    def __init__(self, node_sum, embedding_dim, batch_size):  # add batch_size into model
         super(GNN_Geo, self).__init__()
         # self.node_embedding = nn.Embedding(node_sum, node_sum)
-        self.convolution_1 = GCNConv(node_sum, embedding_dim, normalize=True)
-        self.convolution_2 = GCNConv(embedding_dim, embedding_dim, normalize=True)
-        self.convolution_3 = GCNConv(embedding_dim, embedding_dim, normalize=True)
-        self.convolution_4 = GCNConv(embedding_dim, embedding_dim, normalize=True)
-        self.convolution_5 = GCNConv(embedding_dim, embedding_dim, normalize=True)
-        self.convolution_6 = GCNConv(embedding_dim, node_sum, normalize=True)
-        self.leakyrelu = torch.nn.LeakyReLU()
+        self.layer1 = nn.Sequential(
+            torch.nn.Linear(batch_size * node_sum, embedding_dim),
+            nn.LeakyReLU(),
+        )
+        self.layer2 = nn.Sequential(
+            torch.nn.Linear(embedding_dim, embedding_dim),
+            nn.LeakyReLU(),
+        )
+        self.layer3 = nn.Sequential(
+            torch.nn.Linear(embedding_dim, batch_size * node_sum),
+            nn.LeakyReLU(),
+        )
+        self.convolution_1 = GINConv(self.layer1)
+        self.convolution_2 = GINConv(self.layer2)
+        self.convolution_3 = GINConv(self.layer2)
+        self.convolution_4 = GINConv(self.layer2)
+        self.convolution_5 = GINConv(self.layer2)
+        self.convolution_6 = GINConv(self.layer3)
+        # self.convolution_1 = GATConv(batch_size * node_sum, embedding_dim)
+        # self.convolution_2 = GATConv(embedding_dim, embedding_dim)
+        # self.convolution_3 = GATConv(embedding_dim, embedding_dim)
+        # self.convolution_4 = GATConv(embedding_dim, embedding_dim)
+        # self.convolution_5 = GATConv(embedding_dim, embedding_dim)
+        # self.convolution_6 = GATConv(embedding_dim, batch_size * node_sum)
+        self.leakyrelu = nn.LeakyReLU()
+        self.Linear1 = torch.nn.Bilinear(batch_size * node_sum, batch_size * node_sum, batch_size * node_sum, bias=False)
+        self.Linear2 = torch.nn.Linear(batch_size * node_sum, batch_size * node_sum, bias=False)
 
-    def convolutional_pass(self, edge_index, features):
+    def convolutional_pass(self, features, edge_index):
         features = self.convolution_1(features, edge_index)
-        features = self.leakyrelu(features)
+        # features = self.leakyrelu(features)
         # non linearity (leaky relu)
         features = self.convolution_2(features, edge_index)
-        features = self.leakyrelu(features)
+        # features = self.leakyrelu(features)
         features = self.convolution_3(features, edge_index)
-        features = self.leakyrelu(features)
+        # features = self.leakyrelu(features)
         features = self.convolution_4(features, edge_index)
-        features = self.leakyrelu(features)
+        # features = self.leakyrelu(features)
         features = self.convolution_5(features, edge_index)
-        features = self.leakyrelu(features)
+        # features = self.leakyrelu(features)
         features = self.convolution_6(features, edge_index)
-        features = self.leakyrelu(features)
+        # features = self.leakyrelu(features)
 
         return features
 
-    def forward(self, data):
-        edge_index_1 = data[0]  # Graph A edge index 2,e
-        edge_index_2 = data[1]
-        # print(data[3].type())
-        feature = data[3]  # feature dim (N, d) dim 固定
+    def forward(self, edge_index_1, edge_index_2, feature):
+        # edge_index_1 = data[0]  # Graph A edge index 2,e
+        # edge_index_2 = data[1]
+        # # print(data[3].type())
+        # feature = data[3]  # feature dim (N, d) dim 固定
         # feature = self.node_embedding(data[3])
         # print(edge_index_1.size())
+        # print(feature.size())
         # print(feature)
-        FA = self.convolutional_pass(edge_index_1, feature)
-        FB = self.convolutional_pass(edge_index_2, feature)
-        torch.set_printoptions(threshold=5000)
-        # print(data[2])
-        # print(FA)
-        # print(FB)
-        torch.set_printoptions(profile="default")
-        # FA = self.convolutional_pass(edge_index_1, FA)
-        # FB = self.convolutional_pass(edge_index_2, FB)
-        # cos difference
-        FB = torch.transpose(FB, 1, 0)
-        combined_feature = torch.matmul(FA, FB)
-        return combined_feature
+        FA = self.convolutional_pass(feature, edge_index_1)
+        FB = self.convolutional_pass(feature, edge_index_2)
+        FA = torch.transpose(FA, 1, 0)
+        prediction_aff = torch.matmul(FA, FB)
+        return FA, FB, prediction_aff
 
 
 """
@@ -152,82 +167,3 @@ class GCN(nn.Module):
         out = torch.mm(m / degree, x_msg)
 
         return out
-
-
-"""
-Implement of GCN network.
-"""
-
-
-class Net(nn.Module):
-    def __init__(self, nodes_num, embedding_dim, hidden_dims, num_classes, dropout=0.):
-        super(Net, self).__init__()
-
-        self.node_embedding = nn.Embedding(nodes_num, embedding_dim)
-        gcns = []
-        in_dim = embedding_dim
-        for d in hidden_dims:
-            gcns.append(GCN(in_dim, d, dropout))
-            in_dim = d
-        self.gcns = nn.ModuleList(gcns)
-
-        self.classifier = nn.Linear(in_dim, num_classes)
-
-    """
-    Input :
-        x : (N, out_dim)
-        bm : (N, )
-    Output :
-        out : (batch_size, out_dim)
-    """
-    def gcn_maxpooling(self, x, bm):
-        batch_size = torch.max(bm) + 1
-        out = []
-        for i in range(batch_size):
-            inds = (bm == i).nonzero()[:, 0]
-            x_ind = torch.index_select(x, dim=0, index=inds)
-            out.append(torch.max(x_ind, dim=0, keepdim=False)[0])
-        out = torch.stack(out, dim=0)
-
-        return out
-
-    def gcn_meanpooling(self, x, lens):
-        batch_size = torch.max(bm) + 1
-        out = []
-        for i in range(batch_size):
-            inds = (bm == i).nonzero()[:, 0]
-            x_ind = torch.index_select(x, dim=0, index=inds)
-            out.append(torch.mean(x_ind, dim=0, keepdim=False))
-        out = torch.stack(out, dim=0)
-
-        return out
-
-    def gcn_sumpooling(self, x, lens):
-        batch_size = torch.max(bm) + 1
-        out = []
-        for i in range(batch_size):
-            inds = (bm == i).nonzero()[:, 0]
-            x_ind = torch.index_select(x, dim=0, index=inds)
-            out.append(torch.sum(x_ind, dim=0, keepdim=False))
-        out = torch.stack(out, dim=0)
-
-        return out
-
-    """
-    Input :
-        x : (N, )
-        m : (N, N)
-        bm : (N, )
-    Output :
-        output : (batch_size, num_classes)
-    """
-    def forward(self, x, m, bm):
-        x_emb = self.node_embedding(x)  # (N, embedding_dim)
-        out = x_emb
-        for ml in self.gcns:
-            out = ml(out, m)
-        output = self.gcn_maxpooling(out, bm)   # (batch_size, out_dim)
-
-        logits = self.classifier(output)  # (batch_size, num_classes)
-
-        return logits
