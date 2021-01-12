@@ -8,7 +8,7 @@ import dgl
 import random
 
 df = pd.read_csv('./Graph_dataset.csv')
-graph_size = 10
+graph_size = 100
 
 
 def transfrom_str_to_nparray(str, i):

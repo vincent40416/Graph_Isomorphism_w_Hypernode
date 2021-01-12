@@ -58,8 +58,7 @@ def select_data_tensorboard(data, writer, epoch):
     fig = plt.figure()
     nx.draw(G, pos=nx.spring_layout(G), with_labels=True)
     plt.draw()
-    writer.add_figure('epoch_%d_A' % epoch, fig)
-
+    # writer.add_figure('epoch_%d_A' % epoch, fig)
 
     list_B = []
     data_B = data[1].cpu().detach().numpy()
@@ -69,7 +68,9 @@ def select_data_tensorboard(data, writer, epoch):
     fig_B = plt.figure()
     nx.draw(G_B, pos=nx.spring_layout(G_B), with_labels=True)
     plt.draw()
-    writer.add_figure('epoch_%d_B' % epoch, fig_B)
+    figs = [fig, fig_B]
+
+    writer.add_figure('epoch_%d_GA_and_GB' % epoch, figs)
     # writer.close()
 
 
@@ -80,7 +81,26 @@ def select_embedding_tensorboard(data, writer, epoch, identity):
     ax.matshow(data, cmap='cool')
 
     for (i, j), z in np.ndenumerate(data):
-        ax.text(j, i, '{:^5.1f}'.format(z), ha='center', va='center')
+        ax.text(j, i, '{:^5.4f}'.format(z), ha='center', va='center')
     # fig.figure(figsize=(4, 4))
-    writer.add_figure(identity + '_epoch_%d' % epoch, fig)
+    # writer.add_figure('epoch_%d_GA_and_GB' % epoch, figs)
     # writer.close()
+    return fig
+
+
+def select_matrices(FA, FB, pred_b, pred, Aff, writer, epoch):
+    fig1 = select_embedding_tensorboard(FA, writer, epoch, "FA")
+    fig2 = select_embedding_tensorboard(FB, writer, epoch, "FB")
+    fig3 = select_embedding_tensorboard(pred_b, writer, epoch, "pred_b")
+    fig4 = select_embedding_tensorboard(pred, writer, epoch, "pred")
+    fig5 = select_embedding_tensorboard(Aff, writer, epoch, "Aff")
+    figs = [fig1, fig2, fig3, fig4, fig5]
+    writer.add_figure('epoch_%d_FA_FB_pred_Aff' % epoch, figs)
+
+
+def compare_matrix(FA, FB):
+    index = np.where((np.isclose(FA, FB[:, None])).all(-1))
+    Aff = np.full((np.size(FA, 0), np.size(FA, 1)), -1)
+    for i in range(len(index[0])):
+        Aff[index[1][i]][index[0][i]] = 1
+    return Aff

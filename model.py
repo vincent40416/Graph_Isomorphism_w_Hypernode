@@ -88,12 +88,12 @@ class GNN_Geo(torch.nn.Module):
             torch.nn.Linear(embedding_dim, batch_size * node_sum),
             nn.LeakyReLU(),
         )
-        self.convolution_1 = GINConv(self.layer1)
-        self.convolution_2 = GINConv(self.layer2)
-        self.convolution_3 = GINConv(self.layer2)
-        self.convolution_4 = GINConv(self.layer2)
-        self.convolution_5 = GINConv(self.layer2)
-        self.convolution_6 = GINConv(self.layer3)
+        self.convolution_1 = GCNConv(batch_size * node_sum, embedding_dim, normalize=True)
+        self.convolution_2 = GCNConv(embedding_dim, embedding_dim, normalize=True)
+        self.convolution_3 = GCNConv(embedding_dim, embedding_dim, normalize=True)
+        self.convolution_4 = GCNConv(embedding_dim, embedding_dim, normalize=True)
+        self.convolution_5 = GCNConv(embedding_dim, embedding_dim, normalize=True)
+        self.convolution_6 = GCNConv(embedding_dim, batch_size * node_sum, normalize=False)
         # self.convolution_1 = GATConv(batch_size * node_sum, embedding_dim)
         # self.convolution_2 = GATConv(embedding_dim, embedding_dim)
         # self.convolution_3 = GATConv(embedding_dim, embedding_dim)
@@ -109,15 +109,15 @@ class GNN_Geo(torch.nn.Module):
         # features = self.leakyrelu(features)
         # non linearity (leaky relu)
         features = self.convolution_2(features, edge_index)
-        # features = self.leakyrelu(features)
+        features = self.leakyrelu(features)
         features = self.convolution_3(features, edge_index)
-        # features = self.leakyrelu(features)
+        features = self.leakyrelu(features)
         features = self.convolution_4(features, edge_index)
-        # features = self.leakyrelu(features)
+        features = self.leakyrelu(features)
         features = self.convolution_5(features, edge_index)
-        # features = self.leakyrelu(features)
+        features = self.leakyrelu(features)
         features = self.convolution_6(features, edge_index)
-        # features = self.leakyrelu(features)
+        features = self.leakyrelu(features)
 
         return features
 
@@ -130,11 +130,11 @@ class GNN_Geo(torch.nn.Module):
         # print(edge_index_1.size())
         # print(feature.size())
         # print(feature)
-        FA = self.convolutional_pass(feature, edge_index_1)
+        FA_b = self.convolutional_pass(feature, edge_index_1)
         FB = self.convolutional_pass(feature, edge_index_2)
-        FA = torch.transpose(FA, 1, 0)
+        FA = torch.transpose(FA_b, 1, 0)
         prediction_aff = torch.matmul(FA, FB)
-        return FA, FB, prediction_aff
+        return FA_b, FB, prediction_aff
 
 
 """

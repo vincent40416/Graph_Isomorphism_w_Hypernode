@@ -28,9 +28,10 @@ from random import randint
 import numpy as np
 import csv
 
-num = 10000
+num = 1000
 n = 10  # 10 nodes
-m = 30  # 20 edges
+p = 2 * np.log(n) / n  # 20 edges
+np.set_printoptions(threshold=np.inf)
 
 Affinity = np.full((n, n), -1, dtype=float)
 for i in range(n):
@@ -84,12 +85,12 @@ def convert_to_auto(aff, mapping):
 
 
 # 開啟輸出的 CSV 檔案
-with open('Graph_dataset.csv', 'w', newline='') as csvfile:
+with open('Graph_dataset.csv_'+ str(n), 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(['GraphA', 'GraphB', 'Affinity'])
     g_list = []
     for k in range(num):
-        G = Graph.Erdos_Renyi(n=n, m=18)
+        G = Graph.Erdos_Renyi(n=n, p=p)
         A = G.get_adjacency()
         graph_np = np.array(A.data, dtype=float)
         # print(graph_np)
@@ -99,7 +100,7 @@ with open('Graph_dataset.csv', 'w', newline='') as csvfile:
             Aff = Affinity.copy()
             convert_to_auto(Aff, automor)
             gern_np = graph_np.copy()
-            swaps = 19
+            swaps = 50
             for step in range(swaps):
                 a = randint(0, n - 1)
                 b = a
